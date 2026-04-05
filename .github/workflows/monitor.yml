@@ -1,0 +1,42 @@
+name: Monitor Proposições CE
+
+on:
+  schedule:
+    - cron: '0 11 * * *'   # 08h BRT
+    - cron: '0 15 * * *'   # 12h BRT
+    - cron: '0 20 * * *'   # 17h BRT
+    - cron: '0 0  * * *'   # 21h BRT
+  workflow_dispatch:
+
+jobs:
+  monitorar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Executar monitor
+        env:
+          EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+          EMAIL_SENHA:     ${{ secrets.EMAIL_SENHA }}
+          EMAIL_DESTINO:   ${{ secrets.EMAIL_DESTINO }}
+        run: node monitor.js
+
+      - name: Salvar estado
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add estado.json
+          git diff --staged --quiet || git commit -m "chore: atualiza estado [skip ci]"
+          git push

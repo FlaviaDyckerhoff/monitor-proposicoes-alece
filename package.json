@@ -1,0 +1,15 @@
+{
+  "name": "monitor-proposicoes-ce",
+  "version": "1.0.0",
+  "description": "Monitor automático de proposições da ALECE via V-Doc",
+  "main": "monitor.js",
+  "scripts": {
+    "start": "node monitor.js"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.9"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
