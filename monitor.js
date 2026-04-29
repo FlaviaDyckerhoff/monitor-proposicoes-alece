@@ -6,13 +6,9 @@ const EMAIL_REMETENTE = process.env.EMAIL_REMETENTE;
 const EMAIL_SENHA     = process.env.EMAIL_SENHA;
 const ARQUIVO_ESTADO  = 'estado.json';
 
-// Endpoint AJAX confirmado via DevTools (path /ajax/, diferente do frontend /consultaExterna/)
-// Não exige CAPTCHA nem autenticação — o CAPTCHA só protege o submit do formulário HTML
 const VDOC_AJAX = 'https://vdocleg.al.ce.gov.br/vdoc_leg/ajax/ajaxLocalizarProcessos.jsp';
-const SITE_URL  = 'https://vdocleg.al.ce.gov.br/vdoc_leg/consultaExterna/localizarProcessos.jsp';
+const VDOC_HOME = 'https://vdocleg.al.ce.gov.br/vdoc_leg/consultaExterna/localizarProcessos.jsp';
 
-// Quantas páginas buscar por execução (20 registros/página, ordenados por número DESC)
-// 3 páginas = 60 proposições mais recentes — suficiente para 4 runs/dia sem perder nada
 const PAGINAS_POR_RUN = 3;
 
 // ─── Estado ──────────────────────────────────────────────────────────────────
@@ -28,7 +24,36 @@ function salvarEstado(estado) {
   fs.writeFileSync(ARQUIVO_ESTADO, JSON.stringify(estado, null, 2));
 }
 
-// ─── XML Parser mínimo (sem dependências externas) ───────────────────────────
+// ─── Sessão ───────────────────────────────────────────────────────────────────
+
+async function obterSessao() {
+  console.log('   Obtendo sessao do V-Doc...');
+
+  const response = await fetch(VDOC_HOME, {
+    headers: {
+      'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'pt-BR,pt;q=0.9',
+    },
+    redirect: 'follow',
+  });
+
+  // Extrai JSESSIONID do header Set-Cookie
+  const cookies = response.headers.get('set-cookie') || '';
+  const match = cookies.match(/JSESSIONID=([A-F0-9]+)/i);
+
+  if (!match) {
+    console.error('   Nao foi possivel obter JSESSIONID. Cookies recebidos:', cookies.substring(0, 200));
+    // Tenta continuar sem sessao — pode funcionar em alguns casos
+    return null;
+  }
+
+  const jsessionid = match[1];
+  console.log('   JSESSIONID obtido: ' + jsessionid.substring(0, 8) + '...');
+  return jsessionid;
+}
+
+// ─── XML Parser mínimo ────────────────────────────────────────────────────────
 
 function extrairTag(xml, tag) {
   const re = new RegExp('<' + tag + '>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/' + tag + '>', 'i');
@@ -54,18 +79,15 @@ function parsearRegistros(xml) {
   return registros;
 }
 
-// ─── Busca ───────────────────────────────────────────────────────────────────
+// ─── Busca ────────────────────────────────────────────────────────────────────
 
-async function buscarPagina(pagina) {
-  const ano = new Date().getFullYear();
-
-  // Parâmetros confirmados via cURL capturado no DevTools — espelho exato da requisição real
+async function buscarPagina(pagina, jsessionid) {
   const params = new URLSearchParams({
     comando:                         'exibirRegistrosLocalizarProcessos',
     numeroProcesso:                  '',
     nomeParte:                       '',
-    dataDe: '',
-    dataAte: '',
+    dataDe:                          '',
+    dataAte:                         '',
     codigoCategoriaAssunto:          '',
     codigoFase:                      '',
     codigoSituacao:                  '',
@@ -81,23 +103,32 @@ async function buscarPagina(pagina) {
   const url = VDOC_AJAX + '?' + params.toString();
   console.log('   Pagina ' + pagina + '...');
 
-  const response = await fetch(url, {
-    headers: {
-      'Accept':          '*/*',
-      'Referer':         SITE_URL,
-      'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'pt-BR,pt;q=0.9',
-    },
-  });
+  const headers = {
+    'Accept':          '*/*',
+    'Referer':         VDOC_HOME,
+    'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept-Language': 'pt-BR,pt;q=0.9',
+  };
+
+  if (jsessionid) {
+    headers['Cookie'] = 'JSESSIONID=' + jsessionid;
+  }
+
+  const response = await fetch(url, { headers });
 
   if (!response.ok) {
-    console.error('   Erro HTTP ' + response.status + ' na pagina ' + pagina);
+    console.error('   Erro HTTP ' + response.status);
     const txt = await response.text().catch(() => '');
     console.error('   Resposta:', txt.substring(0, 300));
     return { registros: [], fim: true };
   }
 
   const xml = await response.text();
+
+  if (!xml || xml.trim() === '') {
+    console.error('   Resposta vazia (body em branco)');
+    return { registros: [], fim: true };
+  }
 
   if (!xml.includes('<root>')) {
     console.error('   Resposta inesperada (nao e XML do V-Doc):');
@@ -121,10 +152,15 @@ async function buscarPagina(pagina) {
 
 async function buscarProposicoes() {
   console.log('Consultando V-Doc ALECE...');
+
+  const jsessionid = await obterSessao();
+  // Pequena pausa após obter sessão — dá tempo do servidor registrar
+  await new Promise(r => setTimeout(r, 800));
+
   const todas = [];
 
   for (let p = 1; p <= PAGINAS_POR_RUN; p++) {
-    const { registros, fim } = await buscarPagina(p);
+    const { registros, fim } = await buscarPagina(p, jsessionid);
     todas.push(...registros);
     if (fim) break;
     await new Promise(r => setTimeout(r, 600));
@@ -134,7 +170,7 @@ async function buscarProposicoes() {
   return todas;
 }
 
-// ─── Normalização ────────────────────────────────────────────────────────────
+// ─── Normalização ─────────────────────────────────────────────────────────────
 
 function normalizarProposicao(p) {
   const numero = (p.numero || '').replace(/^0+/, '') || '-';
@@ -150,11 +186,10 @@ function normalizarProposicao(p) {
     ano:    p.ano || String(new Date().getFullYear()),
     autor:  (p.autor || '-').trim(),
     ementa,
-    link:   SITE_URL,
   };
 }
 
-// ─── Email ───────────────────────────────────────────────────────────────────
+// ─── Email ────────────────────────────────────────────────────────────────────
 
 async function enviarEmail(novas) {
   const transporter = nodemailer.createTransport({
@@ -172,7 +207,6 @@ async function enviarEmail(novas) {
 
   const blocos = Object.keys(porTipo).sort().map(tipo => {
     const header = '<tr><td colspan="3" style="padding:10px 8px 4px;background:#e8f0fb;font-weight:bold;color:' + COR + ';font-size:13px;border-top:2px solid ' + COR + ';border-bottom:1px solid #c9d9f0">' + tipo + ' &mdash; ' + porTipo[tipo].length + ' proposicao(oes)</td></tr>';
-
     const rows = porTipo[tipo].map(p =>
       '<tr>' +
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;white-space:nowrap;font-size:13px;vertical-align:top"><strong style="color:' + COR + '">' + p.numero + '/' + p.ano + '</strong></td>' +
@@ -180,7 +214,6 @@ async function enviarEmail(novas) {
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;vertical-align:top">' + p.ementa + '</td>' +
       '</tr>'
     ).join('');
-
     return header + rows;
   }).join('');
 
@@ -198,7 +231,7 @@ async function enviarEmail(novas) {
     '</tr></thead>' +
     '<tbody>' + blocos + '</tbody>' +
     '</table>' +
-    '<p style="margin-top:16px;font-size:12px;color:#999;padding:0 4px">Consulta completa: <a href="' + SITE_URL + '" style="color:' + COR + '">V-Doc ALECE</a></p>' +
+    '<p style="margin-top:16px;font-size:12px;color:#999;padding:0 4px">Consulta completa: <a href="' + VDOC_HOME + '" style="color:' + COR + '">V-Doc ALECE</a></p>' +
     '</div>';
 
   await transporter.sendMail({
@@ -211,7 +244,7 @@ async function enviarEmail(novas) {
   console.log('Email enviado com ' + novas.length + ' proposicoes novas.');
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 (async () => {
   console.log('Iniciando monitor ALECE (Ceara)...');
