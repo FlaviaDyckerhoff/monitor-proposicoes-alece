@@ -2,10 +2,8 @@ name: Monitor Proposições CE
 
 on:
   schedule:
-    - cron: '0 11 * * *'   # 08h BRT
-    - cron: '0 15 * * *'   # 12h BRT
-    - cron: '0 20 * * *'   # 17h BRT
-    - cron: '0 0  * * *'   # 21h BRT
+    - cron: '0 11 * * *'   # 08:00 BRT
+    - cron: '0 19 * * *'   # 16:00 BRT
   workflow_dispatch:
 
 jobs:
