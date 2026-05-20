@@ -5,6 +5,7 @@ Monitor automático de proposições da Assembleia Legislativa do Estado do Cear
 ## Como funciona
 
 - Consulta o endpoint AJAX do sistema V-Doc (`ajaxLocalizarProcessos.jsp`) diretamente, sem CAPTCHA
+- Busca separadamente os tipos PL, PLC, PEC, Mensagem e PIL para não depender do fluxo geral do V-Doc
 - O CAPTCHA do site protege apenas o submit do formulário HTML — o endpoint AJAX é público
 - Compara com `estado.json` para detectar proposições novas
 - Envia email via Gmail quando há novidades
@@ -27,10 +28,12 @@ GET https://vdocleg.al.ce.gov.br/vdoc_leg/ajax/ajaxLocalizarProcessos.jsp
   ?comando=exibirRegistrosLocalizarProcessos
   &limite=20
   &pagina=1
+  &codigoCategoriaAssunto=1
+  &codigoAssuntoSelecionado=3
   &codigoLotacaoSelecionada=0
   &codigoClassificacaoPCTT=0
   &ordenacaoAtualLocalizarProcesso=undefined
-  (demais parâmetros vazios)
+  (demais parâmetros vazios; o `codigoAssuntoSelecionado` varia por tipo monitorado)
 ```
 
 Resposta em XML com campos: `codigoProcesso`, `numeroProcesso`, `anoProcesso`, `assunto`, `ementa`, `autor`.
@@ -62,7 +65,17 @@ monitor-proposicoes-ce/
 
 Actions → Monitor Proposições CE → Run workflow
 
-O primeiro run envia o backlog recente e salva o estado. A partir do segundo run, só notifica novidades.
+O primeiro run após mudança de escopo cria baseline sem enviar backlog histórico. A partir do segundo run, só notifica novidades.
+
+## Tipos monitorados
+
+| Código V-Doc | Tipo |
+|---|---|
+| 1 | PEC — Proposta de Emenda Constitucional |
+| 2 | Mensagem |
+| 3 | PL — Projeto de Lei |
+| 4 | PLC — Projeto de Lei Complementar |
+| 7 | PIL — Projeto de Indicação |
 
 ## Campos mapeados
 

@@ -10,6 +10,25 @@ const VDOC_AJAX = 'https://vdocleg.al.ce.gov.br/vdoc_leg/ajax/ajaxLocalizarProce
 const VDOC_HOME = 'https://vdocleg.al.ce.gov.br/vdoc_leg/consultaExterna/localizarProcessos.jsp';
 
 const PAGINAS_POR_RUN = 3;
+const MONITOR_VERSION = 'alece-tipos-v2';
+
+const TIPOS_MONITORADOS = [
+  { codigo: '1', sigla: 'PEC', label: 'PEC - PROPOSTA DE EMENDA CONSTITUCIONAL' },
+  { codigo: '2', sigla: 'MENSAGEM', label: 'MENSAGEM' },
+  { codigo: '3', sigla: 'PL', label: 'PL - PROJETO DE LEI' },
+  { codigo: '4', sigla: 'PLC', label: 'PLC - PROJETO DE LEI COMPLEMENTAR' },
+  { codigo: '7', sigla: 'PIL', label: 'PIL - PROJETO DE INDICAÇÃO' },
+];
+
+const TIPO_LABELS = {
+  'PROPOSTA DE EMENDA CONSTITUCIONAL': 'PEC - PROPOSTA DE EMENDA CONSTITUCIONAL',
+  'MENSAGEM': 'MENSAGEM',
+  'MENSAGENS': 'MENSAGEM',
+  'PROJETO DE LEI': 'PL - PROJETO DE LEI',
+  'PROJETO DE LEI COMPLEMENTAR': 'PLC - PROJETO DE LEI COMPLEMENTAR',
+  'PROJETO DE INDICAÇÃO': 'PIL - PROJETO DE INDICAÇÃO',
+  'PROJETO DE INDICACAO': 'PIL - PROJETO DE INDICAÇÃO',
+};
 
 // ─── Estado ──────────────────────────────────────────────────────────────────
 
@@ -81,18 +100,20 @@ function parsearRegistros(xml) {
 
 // ─── Busca ────────────────────────────────────────────────────────────────────
 
-async function buscarPagina(pagina, jsessionid) {
+async function buscarPagina(pagina, jsessionid, tipoMonitorado = null) {
+  const codigoAssuntoSelecionado = tipoMonitorado ? tipoMonitorado.codigo : '';
+
   const params = new URLSearchParams({
     comando:                         'exibirRegistrosLocalizarProcessos',
     numeroProcesso:                  '',
     nomeParte:                       '',
     dataDe:                          '',
     dataAte:                         '',
-    codigoCategoriaAssunto:          '',
+    codigoCategoriaAssunto:          tipoMonitorado ? '1' : '',
     codigoFase:                      '',
     codigoSituacao:                  '',
     codigoLotacaoSelecionada:        '0',
-    codigoAssuntoSelecionado:        '',
+    codigoAssuntoSelecionado,
     codigoClassificacaoPCTT:         '0',
     ordenacaoAtualLocalizarProcesso: 'undefined',
     observacoesProcesso:             '',
@@ -101,7 +122,8 @@ async function buscarPagina(pagina, jsessionid) {
   });
 
   const url = VDOC_AJAX + '?' + params.toString();
-  console.log('   Pagina ' + pagina + '...');
+  const prefixoTipo = tipoMonitorado ? tipoMonitorado.sigla + ' - ' : '';
+  console.log('   ' + prefixoTipo + 'Pagina ' + pagina + '...');
 
   const headers = {
     'Accept':          '*/*',
@@ -159,10 +181,16 @@ async function buscarProposicoes() {
 
   const todas = [];
 
-  for (let p = 1; p <= PAGINAS_POR_RUN; p++) {
-    const { registros, fim } = await buscarPagina(p, jsessionid);
-    todas.push(...registros);
-    if (fim) break;
+  for (const tipo of TIPOS_MONITORADOS) {
+    console.log('   Tipo: ' + tipo.label);
+
+    for (let p = 1; p <= PAGINAS_POR_RUN; p++) {
+      const { registros, fim } = await buscarPagina(p, jsessionid, tipo);
+      todas.push(...registros);
+      if (fim) break;
+      await new Promise(r => setTimeout(r, 600));
+    }
+
     await new Promise(r => setTimeout(r, 600));
   }
 
@@ -174,7 +202,8 @@ async function buscarProposicoes() {
 
 function normalizarProposicao(p) {
   const numero = (p.numero || '').replace(/^0+/, '') || '-';
-  const tipo   = (p.tipo   || 'OUTROS').trim().toUpperCase();
+  const assunto = (p.tipo || 'OUTROS').trim().toUpperCase();
+  const tipo   = TIPO_LABELS[assunto] || assunto;
   const ementa = (!p.ementa || p.ementa.trim() === '.')
     ? '(ementa nao disponivel)'
     : p.ementa.substring(0, 300);
@@ -263,6 +292,16 @@ async function enviarEmail(novas) {
   const proposicoes = raw
     .map(normalizarProposicao)
     .filter(p => p.id && p.id !== 'null');
+
+  if (estado.monitor_version !== MONITOR_VERSION) {
+    proposicoes.forEach(p => idsVistos.add(p.id));
+    estado.proposicoes_vistas = Array.from(idsVistos);
+    estado.ultima_execucao = new Date().toISOString();
+    estado.monitor_version = MONITOR_VERSION;
+    salvarEstado(estado);
+    console.log('Baseline da expansao de tipos criado sem enviar email historico: ' + proposicoes.length + ' proposicoes marcadas.');
+    process.exit(0);
+  }
 
   const novas = proposicoes.filter(p => !idsVistos.has(p.id));
   console.log('Proposicoes novas: ' + novas.length);
