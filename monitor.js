@@ -173,7 +173,7 @@ async function buscarPagina(pagina, jsessionid, tipoMonitorado = null) {
 }
 
 async function buscarProposicoes() {
-  console.log('Consultando V-Doc ALECE...');
+  console.log('Consultando V-Doc da Assembleia Legislativa do Ceará...');
 
   const jsessionid = await obterSessao();
   // Pequena pausa após obter sessão — dá tempo do servidor registrar
@@ -249,7 +249,7 @@ async function enviarEmail(novas) {
   const html =
     '<div style="font-family:Arial,sans-serif;max-width:900px;margin:0 auto">' +
     '<div style="background:' + COR + ';padding:16px 20px;border-radius:6px 6px 0 0">' +
-    '<h2 style="color:white;margin:0;font-size:18px">&#127963;&#65039; ALECE &mdash; ' + novas.length + ' nova(s) proposicao(oes)</h2>' +
+    '<h2 style="color:white;margin:0;font-size:18px">&#127963;&#65039; Assembleia Legislativa do Ceará &mdash; ' + novas.length + ' nova(s) proposicao(oes)</h2>' +
     '<p style="color:#cde;margin:4px 0 0;font-size:13px">Monitoramento automatico &mdash; ' + new Date().toLocaleString('pt-BR') + '</p>' +
     '</div>' +
     '<table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid #c9d9f0;border-top:none">' +
@@ -260,13 +260,13 @@ async function enviarEmail(novas) {
     '</tr></thead>' +
     '<tbody>' + blocos + '</tbody>' +
     '</table>' +
-    '<p style="margin-top:16px;font-size:12px;color:#999;padding:0 4px">Consulta completa: <a href="' + VDOC_HOME + '" style="color:' + COR + '">V-Doc ALECE</a></p>' +
+    '<p style="margin-top:16px;font-size:12px;color:#999;padding:0 4px">Consulta completa: <a href="' + VDOC_HOME + '" style="color:' + COR + '">V-Doc da Assembleia Legislativa do Ceará</a></p>' +
     '</div>';
 
   await transporter.sendMail({
-    from:    '"Monitor ALECE" <' + EMAIL_REMETENTE + '>',
+    from:    '"Monitor Ceará" <' + EMAIL_REMETENTE + '>',
     to:      EMAIL_DESTINO,
-    subject: 'ALECE: ' + novas.length + ' nova(s) proposicao(oes) - ' + new Date().toLocaleDateString('pt-BR'),
+    subject: '🏛️ Ceará: ' + novas.length + ' nova(s) proposicao(oes) - ' + new Date().toLocaleDateString('pt-BR'),
     html,
   });
 
