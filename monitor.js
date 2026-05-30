@@ -213,6 +213,7 @@ function normalizarProposicao(p) {
     tipo,
     numero,
     ano:    p.ano || String(new Date().getFullYear()),
+    link:   VDOC_HOME + '?codigoProcesso=' + encodeURIComponent(String(p.id)),
     autor:  (p.autor || '-').trim(),
     ementa,
   };
@@ -238,7 +239,7 @@ async function enviarEmail(novas) {
     const header = '<tr><td colspan="3" style="padding:10px 8px 4px;background:#e8f0fb;font-weight:bold;color:' + COR + ';font-size:13px;border-top:2px solid ' + COR + ';border-bottom:1px solid #c9d9f0">' + tipo + ' &mdash; ' + porTipo[tipo].length + ' proposicao(oes)</td></tr>';
     const rows = porTipo[tipo].map(p =>
       '<tr>' +
-      '<td style="padding:8px 10px;border-bottom:1px solid #eee;white-space:nowrap;font-size:13px;vertical-align:top"><strong style="color:' + COR + '">' + p.numero + '/' + p.ano + '</strong></td>' +
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;white-space:nowrap;font-size:13px;vertical-align:top"><a href="' + p.link + '" style="color:' + COR + ';text-decoration:none"><strong>' + p.numero + '/' + p.ano + '</strong></a></td>' +
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;color:#555;font-size:12px;white-space:nowrap;vertical-align:top">' + p.autor + '</td>' +
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;vertical-align:top">' + p.ementa + '</td>' +
       '</tr>'
