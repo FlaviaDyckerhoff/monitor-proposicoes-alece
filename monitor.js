@@ -9,7 +9,7 @@ const ARQUIVO_ESTADO  = 'estado.json';
 const VDOC_AJAX = 'https://vdocleg.al.ce.gov.br/vdoc_leg/ajax/ajaxLocalizarProcessos.jsp';
 const VDOC_HOME = 'https://vdocleg.al.ce.gov.br/vdoc_leg/consultaExterna/localizarProcessos.jsp';
 
-const PAGINAS_POR_RUN = 3;
+const PAGINAS_POR_RUN = 20;
 const MONITOR_VERSION = 'alece-tipos-v2';
 
 const TIPOS_MONITORADOS = [
