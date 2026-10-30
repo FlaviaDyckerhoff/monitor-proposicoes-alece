@@ -757,8 +757,7 @@ async function enviarEmail(novas) {
   const raw = await buscarProposicoes();
 
   if (raw.length === 0) {
-    console.log('Nenhuma proposicao retornada. Encerrando sem alterar estado.');
-    process.exit(0);
+    throw new Error('Fonte ALECE não retornou proposições; estado preservado');
   }
 
   const proposicoes = raw
